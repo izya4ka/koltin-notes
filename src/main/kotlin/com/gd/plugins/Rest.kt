@@ -21,24 +21,45 @@ fun Application.configureRest() {
                         val username = call.principal<JWTPrincipal>()!!.payload.getClaim("name").asString()
                         tasks.insertTask(received, username)
                         call.respond(HttpStatusCode.Created, "Task created")
-                    } catch (e: Throwable) {
+                    } catch (_: Throwable) {
                         call.respond(HttpStatusCode.BadRequest, "Bad request")
                     }
                 }
                 get {
                     val username: String = call.principal<JWTPrincipal>()!!.payload.getClaim("name").asString()
-                    call.respond(tasks.getAllTasksForUsername(username))
+                    call.respond(tasks.getAllTasksByUsername(username))
                 }
+                route("/{id}") {
+                    delete {
+                        val username: String = call.principal<JWTPrincipal>()!!.payload.getClaim("name").asString()
+                        val id = call.parameters["id"]?.toIntOrNull()
+                        id ?: call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+                        if (tasks.isTaskExist(id!!, username)) tasks.deleteTaskByID(id, username) else call.respond(
+                            HttpStatusCode.NotFound,
+                            "Task not found"
+                        )
+                        call.respond(HttpStatusCode.OK, "Task deleted")
+                    }
 
-                delete("/{id}") {
-                    val username: String = call.principal<JWTPrincipal>()!!.payload.getClaim("name").asString()
-                    val id = call.parameters["id"]?.toIntOrNull()
-                    if (id == null) call.respond(HttpStatusCode.BadRequest, "Invalid ID")
-                    if (tasks.isTaskExist(id!!, username)) tasks.deleteTaskByID(id, username) else call.respond(
-                        HttpStatusCode.NotFound,
-                        "Task not found"
-                    )
-                    call.respond(HttpStatusCode.OK, "Task deleted")
+                    put {
+                        try {
+                            val received = call.receive<RawTask>()
+                            val id = call.parameters["id"]?.toIntOrNull()
+                            id ?: call.respond(HttpStatusCode.BadRequest, "Invalid ID")
+                            val username: String = call.principal<JWTPrincipal>()!!.payload.getClaim("name").asString()
+                            if (tasks.isTaskExist(id!!, username)) tasks.updateTaskByID(
+                                id,
+                                username,
+                                received
+                            ) else call.respond(
+                                HttpStatusCode.NotFound,
+                                "Task not found"
+                            )
+                            call.respond(HttpStatusCode.OK, "Task changed")
+                        } catch (_: Throwable) {
+                            call.respond(HttpStatusCode.BadRequest, "Bad request")
+                        }
+                    }
                 }
             }
         }
